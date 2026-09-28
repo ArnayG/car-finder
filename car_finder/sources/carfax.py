@@ -64,7 +64,7 @@ def fetch_pages(searches: Dict[str, Dict]) -> Iterator[tuple]:
             listings, last = cache.get(page_num), False
             if listings is None:
                 params = {
-                    "zip": config.STANFORD_ZIP,
+                    "zip": config.ZIP,
                     "radius": config.RADIUS_MILES,
                     "sort": "BEST",
                     "rows": 24,

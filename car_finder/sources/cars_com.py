@@ -28,7 +28,7 @@ BLOCKED_TITLE = "attention required"
 
 def build_url(search: Dict, page: int) -> str:
     params = {
-        "zip": config.STANFORD_ZIP,
+        "zip": config.ZIP,
         "maximum_distance": config.RADIUS_MILES,
         "sort": "best_match_desc",
         **search,

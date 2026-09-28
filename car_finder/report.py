@@ -44,8 +44,9 @@ def _int(value):
         return None
 
 
-def write_report(scraped: Dict[str, List[Dict]], verdicts: Dict[str, Dict], sources: Dict[str, str]) -> Path:
+def write_report(scraped: Dict[str, List[Dict]], verdicts: Dict[str, Dict], sources: Dict[str, str], location: str) -> Path:
     data = {
+        "location": location,
         "sources": sources,
         "generated": datetime.now().strftime("%b %d, %Y %I:%M %p"),
         "categories": {k: v["label"] for k, v in config.CATEGORIES.items()},

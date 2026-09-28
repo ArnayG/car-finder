@@ -1,6 +1,7 @@
 """Search settings and buying categories."""
 
-STANFORD_ZIP = "94305"
+# Where to search. Defaults to Stanford; override with --zip / --radius.
+ZIP = "94305"
 RADIUS_MILES = 50
 
 MAX_PAGES = 200  # per category per source; both sites serve 24 listings per page

@@ -47,7 +47,7 @@
 <body>
 <header>
   <h1>Car Finder</h1>
-  <div class="sub">cars.com + Carfax listings within 50 miles of Stanford · picked by Claude · <span id="generated"></span></div>
+  <div class="sub">cars.com + Carfax listings within <span id="location"></span> · picked by Claude · <span id="generated"></span></div>
   <div class="sources" id="sources"></div>
 </header>
 <nav id="tabs"></nav>
@@ -70,6 +70,7 @@ const fmt = n => n == null ? "—" : n.toLocaleString();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let active = Object.keys(DATA.categories)[0];
 document.getElementById("generated").textContent = "updated " + DATA.generated;
+document.getElementById("location").textContent = DATA.location;
 document.getElementById("sources").textContent = Object.entries(DATA.sources).map(([k, v]) => `${k}: ${v}`).join(" · ");
 
 function renderTabs() {

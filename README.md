@@ -1,6 +1,6 @@
 # Car Finder
 
-**An AI-powered used-car scout.** Car Finder scrapes every listing within 50 miles of Stanford from **cars.com** and **Carfax**, has **Claude** judge each one against three personal buying profiles, and presents the best picks in a clean, clickable dashboard.
+**An AI-powered used-car scout.** Car Finder searches **cars.com** and **Carfax** for every listing around any US ZIP code (Stanford by default), has **Claude** judge each one against three personal buying profiles, and presents the best picks in a clean, clickable dashboard.
 
 ![Car Finder dashboard](docs/screenshot.png)
 
@@ -8,7 +8,7 @@
 
 ## Why
 
-Car marketplaces are great at filtering on hard numbers (price, year, mileage) but useless at the questions that actually matter when you're shopping for fun: *Is this 1987 car a collectible or just old? Is this $110k car a real driver's car, or a heavy luxury SUV?* Car Finder uses the site filters for the numbers and an LLM for the judgment, then ranks thousands of listings down to a shortlist.
+Car marketplaces are great at filtering on hard numbers (price, year, mileage) but useless at the questions that actually matter when you're shopping for fun: *Is this 1987 car a collectible or just old? Is this $110k car a real driver's car, or a heavy luxury SUV?* Car Finder uses the site filters for the numbers and an LLM for the judgment, then ranks thousands of listings down to a shortlist, so you only review the matches.
 
 ## The three buying profiles
 
@@ -74,13 +74,14 @@ python -m car_finder scrape                   # just scrape
 python -m car_finder classify                 # classify already-scraped listings
 python -m car_finder report                   # rebuild the dashboard
 python -m car_finder --category fun_budget    # limit to one profile (repeatable)
+python -m car_finder --zip 78701 --radius 30   # search another city
 ```
 
 A Chrome window opens for cars.com. If Cloudflare shows a check, complete it there. The dashboard is written to `data/report.html` and opens in your browser.
 
 ## Customizing
 
-Everything lives in [`car_finder/config.py`](car_finder/config.py): location and radius, per-site search filters, delays, and the plain-English **criteria** Claude judges each profile against. To add a new profile, add an entry to `CATEGORIES`.
+Everything lives in [`car_finder/config.py`](car_finder/config.py): default location and radius, per-site search filters, delays, and the plain-English **criteria** Claude judges each profile against. To add a new profile, add an entry to `CATEGORIES`.
 
 ## Project structure
 

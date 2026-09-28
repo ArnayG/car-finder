@@ -1,6 +1,6 @@
 """Listing sources and the shared page cache.
 
-Every fetched page is cached under data/pages/<date>/<source>/<category>/, so
+Every fetched page is cached under data/pages/<date>/<zip>-<radius>mi/<source>/<category>/, so
 an interrupted or blocked run resumes where it stopped instead of refetching.
 """
 
@@ -18,7 +18,8 @@ class BlockedError(RuntimeError):
 
 class PageCache:
     def __init__(self, source: str, category: str):
-        self.dir = Path(config.DATA_DIR) / "pages" / date.today().isoformat() / source / category
+        location = f"{config.ZIP}-{config.RADIUS_MILES}mi"
+        self.dir = Path(config.DATA_DIR) / "pages" / date.today().isoformat() / location / source / category
         self.dir.mkdir(parents=True, exist_ok=True)
 
     def _path(self, page: int) -> Path:

@@ -17,8 +17,8 @@ BATCH_SIZE = 40
 CACHE_FILE = Path(config.DATA_DIR) / "classifications.json"
 
 SYSTEM = (
-    "You are an experienced car buyer and enthusiast helping a Stanford student shop "
-    "for cars listed on cars.com near Palo Alto, CA. For each listing you are given, "
+    "You are an experienced car buyer and enthusiast helping a shopper "
+    "find cars listed for sale near them. For each listing you are given, "
     "decide whether it fits the shopper's category, score how appealing it is within "
     "that category from 1 (poor) to 10 (excellent), and give a one or two sentence "
     "reason a buyer would find useful (what makes it interesting or a good buy, or why "
