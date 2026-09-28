@@ -14,13 +14,12 @@ Categories, search filters, and the criteria Claude judges against live in `car_
 
 ## Setup
 
-Requires Python 3.10+ and Google Chrome.
+Requires Python 3.10+, Google Chrome, and the [Claude Code](https://claude.com/claude-code) CLI (logged in). No API key is needed; classification runs through `claude -p` on your Claude Code login.
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Usage
@@ -46,6 +45,6 @@ cars.com is behind Cloudflare, which blocks plain HTTP requests and headless bro
 
 If you see "Blocked by Cloudflare", wait a few hours or switch networks and rerun.
 
-## Cost
+## Usage limits
 
-Claude classifications are cached in `data/classifications.json`, so reruns only pay for new listings. Listings are sent in batches of 40 to `claude-opus-5` at low effort.
+Claude classifications are cached in `data/classifications.json`, so reruns only classify new listings. Listings go to Claude Code (Opus, low effort, no tools) in batches of 40, which counts against your Claude Code plan's usage.

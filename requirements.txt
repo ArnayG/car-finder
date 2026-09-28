@@ -1,4 +1,2 @@
 playwright>=1.45
 beautifulsoup4>=4.12
-anthropic>=1.9
-pydantic>=2

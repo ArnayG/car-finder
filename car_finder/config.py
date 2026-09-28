@@ -14,7 +14,8 @@ DELAY_SECONDS = (8, 15)
 BROWSER_PROFILE_DIR = ".browser-profile"
 DATA_DIR = "data"
 
-CLAUDE_MODEL = "claude-opus-5"
+# Model alias passed to the Claude Code CLI (`claude -p --model ...`).
+CLAUDE_MODEL = "opus"
 
 # Each category gets its own cars.com search (so the site does the coarse
 # filtering and we fetch far fewer pages), a hard price/year check applied in

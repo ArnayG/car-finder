@@ -1,11 +1,14 @@
-"""Use Claude to decide which listings fit each buying category."""
+"""Use Claude to decide which listings fit each buying category.
+
+Runs through the Claude Code CLI in headless mode (`claude -p`), so it uses your
+Claude Code login instead of an API key.
+"""
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
-
-import anthropic
-from pydantic import BaseModel
 
 from car_finder import config
 
@@ -22,15 +25,25 @@ SYSTEM = (
 )
 
 
-class Verdict(BaseModel):
-    listing_id: str
-    fits: bool
-    score: int
-    reason: str
-
-
-class Verdicts(BaseModel):
-    verdicts: List[Verdict]
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdicts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "listing_id": {"type": "string"},
+                    "fits": {"type": "boolean"},
+                    "score": {"type": "integer", "minimum": 1, "maximum": 10},
+                    "reason": {"type": "string"},
+                },
+                "required": ["listing_id", "fits", "score", "reason"],
+            },
+        }
+    },
+    "required": ["verdicts"],
+}
 
 
 def _num(value) -> Optional[int]:
@@ -74,7 +87,7 @@ def summarize(listing: Dict) -> Dict:
     }
 
 
-def classify_batch(client: anthropic.Anthropic, category: str, batch: List[Dict]) -> List[Verdict]:
+def classify_batch(category: str, batch: List[Dict]) -> List[Dict]:
     criteria = config.CATEGORIES[category]["criteria"]
     prompt = (
         f"Category: {config.CATEGORIES[category]['label']}\n"
@@ -82,20 +95,29 @@ def classify_batch(client: anthropic.Anthropic, category: str, batch: List[Dict]
         f"Return one verdict per listing, using its listing_id.\n\n"
         f"Listings:\n{json.dumps([summarize(l) for l in batch], indent=1)}"
     )
-    response = client.beta.messages.parse(
-        model=config.CLAUDE_MODEL,
-        max_tokens=16000,
-        system=SYSTEM,
-        output_config={"effort": "low"},
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-        messages=[{"role": "user", "content": prompt}],
-        output_format=Verdicts,
+    proc = subprocess.run(
+        [
+            "claude", "-p",
+            "--model", config.CLAUDE_MODEL,
+            "--effort", "low",
+            "--tools", "",
+            "--no-session-persistence",
+            "--system-prompt", SYSTEM,
+            "--output-format", "json",
+            "--json-schema", json.dumps(SCHEMA),
+        ],
+        input=prompt, capture_output=True, text=True, timeout=600,
     )
-    if response.stop_reason == "refusal" or response.parsed_output is None:
-        print(f"  [{category}] batch skipped (stop_reason={response.stop_reason})")
+    try:
+        result = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        result = {}
+    verdicts = (result.get("structured_output") or {}).get("verdicts")
+    if result.get("is_error") or verdicts is None:
+        detail = result.get("result") or proc.stderr.strip() or proc.stdout.strip()
+        print(f"  [{category}] batch skipped: {detail[:200]}")
         return []
-    return response.parsed_output.verdicts
+    return verdicts
 
 
 def load_cache() -> Dict[str, Dict]:
@@ -107,8 +129,9 @@ def load_cache() -> Dict[str, Dict]:
 def classify(scraped: Dict[str, List[Dict]]) -> Dict[str, Dict]:
     """Classify every listing not already in the cache. Returns the full cache,
     keyed by "<category>:<listingId>"."""
+    if not shutil.which("claude"):
+        raise SystemExit("The Claude Code CLI (`claude`) must be installed and logged in.")
     cache = load_cache()
-    client = anthropic.Anthropic()
     for category, listings in scraped.items():
         todo = [
             l for l in prefilter(category, listings)
@@ -116,8 +139,8 @@ def classify(scraped: Dict[str, List[Dict]]) -> Dict[str, Dict]:
         ]
         print(f"  [{category}] {len(todo)} new listings to classify")
         for i in range(0, len(todo), BATCH_SIZE):
-            for v in classify_batch(client, category, todo[i:i + BATCH_SIZE]):
-                cache[f"{category}:{v.listing_id}"] = v.model_dump()
+            for v in classify_batch(category, todo[i:i + BATCH_SIZE]):
+                cache[f"{category}:{v['listing_id']}"] = v
             CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
             CACHE_FILE.write_text(json.dumps(cache, indent=1))
     return cache
