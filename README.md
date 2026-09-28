@@ -101,3 +101,7 @@ car_finder/
 ## A note on scraping
 
 This is a personal project for my own car search. It fetches pages slowly, caches everything so nothing is requested twice, and doesn't redistribute listing data. Scraping may conflict with the terms of service of the sites involved, so use it responsibly.
+
+## License
+
+[MIT](LICENSE) © 2026 Arnay Garhyan
