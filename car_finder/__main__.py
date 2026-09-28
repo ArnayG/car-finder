@@ -12,11 +12,10 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Find cars for sale near Stanford.")
-    parser.add_argument("--headless", action="store_true", help="run the browser headless")
-    args = parser.parse_args()
+    parser.parse_args()
 
-    listings = list(scrape(headless=args.headless))
-    df = pd.DataFrame(listings)
+    listings = list(scrape())
+    df = pd.json_normalize(listings)
     matched = df[[matches(row) for row in listings]] if listings else df
 
     DATA_DIR.mkdir(exist_ok=True)

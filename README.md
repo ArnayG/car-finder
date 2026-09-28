@@ -8,15 +8,15 @@ Scrapes cars.com for cars for sale near Stanford (ZIP 94305) and filters them do
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-playwright install chromium
 ```
 
 ## Usage
 
 ```bash
-python -m car_finder            # opens a Chromium window
-python -m car_finder --headless
+python -m car_finder
 ```
+
+This opens a Google Chrome window (Chrome must be installed). cars.com is behind Cloudflare, which blocks headless browsers and plain HTTP requests, so the scraper drives a visible Chrome with a persistent profile in `.browser-profile/`. cars.com serves 24 listings per page; a full 50-mile scrape is roughly 400 pages and takes about 25 minutes.
 
 Results are written to `data/` as `all-<timestamp>.csv` and `matches-<timestamp>.csv`.
 
