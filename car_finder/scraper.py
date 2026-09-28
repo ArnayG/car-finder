@@ -3,11 +3,18 @@
 cars.com sits behind Cloudflare, which blocks plain HTTP clients and headless
 browsers. Pages are loaded in a visible Google Chrome window (via Playwright)
 with a persistent profile, and we wait for the Cloudflare check to clear.
+
+To avoid getting blocked, each category runs its own narrow search, page loads
+are spaced out with a randomized delay, and every fetched page is cached to
+disk so an interrupted run resumes where it stopped instead of refetching.
 """
 
 import json
+import random
 import time
-from typing import Dict, Iterator, List
+from datetime import date
+from pathlib import Path
+from typing import Dict, List
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
@@ -19,9 +26,19 @@ CHALLENGE_TITLE = "just a moment"
 BLOCKED_TITLE = "attention required"
 
 
-def build_url(page: int) -> str:
-    params = dict(config.SEARCH, page=page)
-    return f"{config.RESULTS_URL}?{urlencode(params)}"
+class BlockedError(RuntimeError):
+    pass
+
+
+def build_url(search: Dict, page: int) -> str:
+    params = {
+        "zip": config.STANFORD_ZIP,
+        "maximum_distance": config.RADIUS_MILES,
+        "sort": "best_match_desc",
+        **search,
+        "page": page,
+    }
+    return f"{config.RESULTS_URL}?{urlencode(params, doseq=True)}"
 
 
 def parse_listings(html: str) -> List[Dict]:
@@ -47,28 +64,50 @@ def load(page: Page, url: str, timeout_s: float = 90) -> str:
             print("Waiting on Cloudflare check; complete it in the Chrome window if prompted.")
             warned = True
         if time.time() > deadline:
-            raise RuntimeError(f"Stuck on Cloudflare challenge at {url}")
+            raise BlockedError(f"Stuck on Cloudflare challenge at {url}")
         page.wait_for_timeout(1000)
     if BLOCKED_TITLE in page.title().lower():
-        raise RuntimeError("Blocked by Cloudflare; wait a while (or switch networks) and retry.")
+        raise BlockedError("Blocked by Cloudflare. Progress is saved; wait a while (or switch networks) and rerun.")
     return page.content()
 
 
-def scrape() -> Iterator[Dict]:
-    """Yield every listing near Stanford, page by page."""
-    seen = set()
+def cache_dir(category: str) -> Path:
+    return Path(config.DATA_DIR) / "pages" / date.today().isoformat() / category
+
+
+def scrape_category(page: Page, category: str) -> List[Dict]:
+    search = config.CATEGORIES[category]["search"]
+    cdir = cache_dir(category)
+    cdir.mkdir(parents=True, exist_ok=True)
+    seen, results = set(), []
+    for page_num in range(1, config.MAX_PAGES + 1):
+        cached = cdir / f"{page_num:03d}.json"
+        if cached.exists():
+            listings = json.loads(cached.read_text())
+        else:
+            listings = parse_listings(load(page, build_url(search, page_num)))
+            cached.write_text(json.dumps(listings))
+            time.sleep(random.uniform(*config.DELAY_SECONDS))
+        new = [l for l in listings if l.get("listingId") not in seen]
+        if not new:
+            break
+        seen.update(l["listingId"] for l in new)
+        results.extend(new)
+        print(f"  [{category}] page {page_num}: {len(new)} listings ({len(results)} total)")
+    return results
+
+
+def scrape(categories: List[str]) -> Dict[str, List[Dict]]:
+    """Scrape each category's search. Returns {category: listings}."""
+    out = {}
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
             config.BROWSER_PROFILE_DIR, headless=False, channel="chrome"
         )
         page = ctx.new_page()
-        for page_num in range(1, config.MAX_PAGES + 1):
-            listings = parse_listings(load(page, build_url(page_num)))
-            new = [l for l in listings if l.get("listingId") not in seen]
-            if not new:
-                break
-            seen.update(l.get("listingId") for l in new)
-            print(f"page {page_num}: {len(new)} listings ({len(seen)} total)")
-            yield from new
-            time.sleep(config.REQUEST_DELAY_SECONDS)
-        ctx.close()
+        try:
+            for category in categories:
+                out[category] = scrape_category(page, category)
+        finally:
+            ctx.close()
+    return out

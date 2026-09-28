@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Finder</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #fff; --ink: #1c1c1c; --muted: #6b6b6b; --line: #e4e2dd;
+    --accent: #8c1515; --good: #2f6f3e; --mid: #9a6b00; --low: #8a8a8a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 28px 32px 0; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin-top: 4px; }
+  nav { display: flex; gap: 4px; padding: 20px 32px 0; border-bottom: 1px solid var(--line); }
+  nav button { border: 0; background: none; padding: 10px 16px; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav .count { font-weight: 400; margin-left: 6px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 16px 32px; }
+  .controls input[type=search], .controls select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  .controls input[type=search] { width: 260px; }
+  .controls label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; padding: 4px 32px 48px; }
+  a.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; color: inherit; text-decoration: none; transition: box-shadow .15s, transform .15s; }
+  a.card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+  a.card.reject { opacity: .55; }
+  .photo { aspect-ratio: 4/3; background: #eceae5 center/cover no-repeat; position: relative; }
+  .score { position: absolute; top: 10px; right: 10px; background: #fff; border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 13px; }
+  .score.hi { color: var(--good); } .score.md { color: var(--mid); } .score.lo { color: var(--low); }
+  .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .title { font-weight: 650; font-size: 16px; }
+  .price { font-size: 20px; font-weight: 700; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .reason { font-size: 14px; margin-top: 4px; }
+  .link { margin-top: auto; padding-top: 8px; color: var(--accent); font-weight: 600; font-size: 14px; }
+  .empty { grid-column: 1/-1; color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Car Finder</h1>
+  <div class="sub">cars.com listings within 50 miles of Stanford · picked by Claude · <span id="generated"></span></div>
+</header>
+<nav id="tabs"></nav>
+<div class="controls">
+  <input type="search" id="q" placeholder="Search make, model, dealer…">
+  <label>Sort
+    <select id="sort">
+      <option value="score">Best match</option>
+      <option value="price-asc">Price: low to high</option>
+      <option value="price-desc">Price: high to low</option>
+      <option value="mileage">Mileage: low to high</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="rejects"> Show cars Claude rejected</label>
+</div>
+<main id="grid"></main>
+<script>
+const DATA = /*__DATA__*/null;
+const fmt = n => n == null ? "—" : n.toLocaleString();
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let active = Object.keys(DATA.categories)[0];
+document.getElementById("generated").textContent = "updated " + DATA.generated;
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = Object.entries(DATA.categories).map(([k, label]) => {
+    const n = DATA.rows.filter(r => r.category === k && r.fits).length;
+    return `<button data-k="${k}" class="${k === active ? "active" : ""}">${esc(label)}<span class="count">${n}</span></button>`;
+  }).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { active = b.dataset.k; renderTabs(); render(); });
+}
+
+function render() {
+  const q = document.getElementById("q").value.toLowerCase();
+  const showRejects = document.getElementById("rejects").checked;
+  const sort = document.getElementById("sort").value;
+  let rows = DATA.rows.filter(r => r.category === active && (showRejects || r.fits)
+    && (!q || `${r.title} ${r.dealer}`.toLowerCase().includes(q)));
+  const by = {
+    "score": (a, b) => (b.fits - a.fits) || (b.score - a.score),
+    "price-asc": (a, b) => (a.price ?? 1e12) - (b.price ?? 1e12),
+    "price-desc": (a, b) => (b.price ?? -1) - (a.price ?? -1),
+    "mileage": (a, b) => (a.mileage ?? 1e12) - (b.mileage ?? 1e12),
+  }[sort];
+  rows.sort(by);
+  document.getElementById("grid").innerHTML = rows.length ? rows.map(r => {
+    const tier = r.score >= 8 ? "hi" : r.score >= 5 ? "md" : "lo";
+    return `<a class="card ${r.fits ? "" : "reject"}" href="${esc(r.url)}" target="_blank" rel="noopener">
+      <div class="photo" style="background-image:url('${esc(r.photo)}')"><span class="score ${tier}">${r.score}/10</span></div>
+      <div class="body">
+        <div class="title">${esc(r.title)}</div>
+        <div class="price">$${fmt(r.price)}</div>
+        <div class="meta">${fmt(r.mileage)} mi · ${esc(r.condition)} · ${esc(r.body || "")}${r.drivetrain ? " · " + esc(r.drivetrain) : ""}</div>
+        <div class="meta">${esc(r.dealer || "")}${r.zip ? " (" + esc(r.zip) + ")" : ""}</div>
+        <div class="reason">${esc(r.reason)}</div>
+        <div class="link">View on cars.com →</div>
+      </div></a>`;
+  }).join("") : `<div class="empty">No listings here yet.</div>`;
+}
+
+["q", "sort", "rejects"].forEach(id => document.getElementById(id).addEventListener("input", render));
+renderTabs(); render();
+</script>
+</body>
+</html>
