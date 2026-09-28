@@ -7,6 +7,7 @@ Claude Code login instead of an API key.
 import json
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -71,20 +72,9 @@ def prefilter(category: str, listings: List[Dict]) -> List[Dict]:
 
 
 def summarize(listing: Dict) -> Dict:
-    return {
-        "listing_id": listing["listingId"],
-        "year": listing.get("year"),
-        "make": listing.get("make"),
-        "model": listing.get("model"),
-        "trim": listing.get("trim"),
-        "price": listing.get("price"),
-        "mileage": listing.get("mileage"),
-        "body_style": listing.get("bodyStyle"),
-        "drivetrain": listing.get("drivetrain"),
-        "fuel": listing.get("fuelType"),
-        "condition": listing.get("stockType"),
-        "color": listing.get("exteriorColor"),
-    }
+    fields = ("id", "year", "make", "model", "trim", "price", "mileage", "body",
+              "drivetrain", "transmission", "fuel", "condition", "color", "history")
+    return {f: listing.get(f) for f in fields if listing.get(f) not in (None, "")}
 
 
 def classify_batch(category: str, batch: List[Dict]) -> List[Dict]:
@@ -92,7 +82,7 @@ def classify_batch(category: str, batch: List[Dict]) -> List[Dict]:
     prompt = (
         f"Category: {config.CATEGORIES[category]['label']}\n"
         f"What the shopper wants: {criteria}\n\n"
-        f"Return one verdict per listing, using its listing_id.\n\n"
+        f"Return one verdict per listing, using its id as listing_id.\n\n"
         f"Listings:\n{json.dumps([summarize(l) for l in batch], indent=1)}"
     )
     proc = subprocess.run(
@@ -128,19 +118,26 @@ def load_cache() -> Dict[str, Dict]:
 
 def classify(scraped: Dict[str, List[Dict]]) -> Dict[str, Dict]:
     """Classify every listing not already in the cache. Returns the full cache,
-    keyed by "<category>:<listingId>"."""
+    keyed by "<category>:<listing id>"."""
     if not shutil.which("claude"):
         raise SystemExit("The Claude Code CLI (`claude`) must be installed and logged in.")
     cache = load_cache()
+    jobs = []
     for category, listings in scraped.items():
         todo = [
             l for l in prefilter(category, listings)
-            if f"{category}:{l['listingId']}" not in cache
+            if f"{category}:{l['id']}" not in cache
         ]
         print(f"  [{category}] {len(todo)} new listings to classify")
-        for i in range(0, len(todo), BATCH_SIZE):
-            for v in classify_batch(category, todo[i:i + BATCH_SIZE]):
+        jobs += [(category, todo[i:i + BATCH_SIZE]) for i in range(0, len(todo), BATCH_SIZE)]
+
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with ThreadPoolExecutor(max_workers=config.CLASSIFY_WORKERS) as pool:
+        futures = {pool.submit(classify_batch, c, b): c for c, b in jobs}
+        for done, future in enumerate(as_completed(futures), 1):
+            category = futures[future]
+            for v in future.result():
                 cache[f"{category}:{v['listing_id']}"] = v
-            CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
             CACHE_FILE.write_text(json.dumps(cache, indent=1))
+            print(f"  classified batch {done}/{len(jobs)}")
     return cache

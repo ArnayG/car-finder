@@ -3,12 +3,13 @@
 STANFORD_ZIP = "94305"
 RADIUS_MILES = 50
 
-RESULTS_URL = "https://www.cars.com/shopping/results/"
-LISTING_URL = "https://www.cars.com/vehicledetail/{listing_id}/"
+MAX_PAGES = 200  # per category per source; both sites serve 24 listings per page
 
-MAX_PAGES = 200  # per category; cars.com serves 24 listings per page
-# Randomized pause between page loads, to stay well under Cloudflare's radar.
-DELAY_SECONDS = (8, 15)
+# Randomized pause between page loads, to stay well under bot-detection radar.
+DELAY_SECONDS = {
+    "cars_com": (8, 15),  # Cloudflare-protected; go slow
+    "carfax": (2, 5),
+}
 
 # Persistent browser profile so Cloudflare clearance cookies survive between runs.
 BROWSER_PROFILE_DIR = ".browser-profile"
@@ -16,18 +17,16 @@ DATA_DIR = "data"
 
 # Model alias passed to the Claude Code CLI (`claude -p --model ...`).
 CLAUDE_MODEL = "opus"
+CLASSIFY_WORKERS = 4  # concurrent Claude calls
 
-# Each category gets its own cars.com search (so the site does the coarse
-# filtering and we fetch far fewer pages), a hard price/year check applied in
-# code, and a description Claude uses to judge fit.
+# Each category runs its own search on each site (so the sites do the coarse
+# filtering and we fetch far fewer pages), then a hard price/year check in
+# code, then Claude judges fit against `criteria`.
 CATEGORIES = {
     "fun_budget": {
         "label": "Fun budget",
-        "search": {
-            "stock_type": "used",
-            "list_price_max": 15000,
-            "year_max": 1989,
-        },
+        "cars_com": {"stock_type": "used", "list_price_max": 15000, "year_max": 1989},
+        "carfax": {"priceMin": 1, "priceMax": 15000, "yearMax": 1989},
         "price": (None, 15000),
         "year": (None, 1989),
         "criteria": (
@@ -39,10 +38,8 @@ CATEGORIES = {
     },
     "fun_expensive": {
         "label": "Fun expensive",
-        "search": {
-            "stock_type": "all",
-            "list_price_min": 70000,
-        },
+        "cars_com": {"stock_type": "all", "list_price_min": 70000},
+        "carfax": {"priceMin": 70000},
         "price": (70000, None),
         "year": (None, None),
         "criteria": (
@@ -55,12 +52,18 @@ CATEGORIES = {
     },
     "daily_driver": {
         "label": "Daily driver",
-        "search": {
+        "cars_com": {
             "stock_type": "all",
             "list_price_min": 30000,
             "list_price_max": 50000,
             "body_style_slugs[]": ["suv", "sedan"],
             "mileage_max": 40000,
+        },
+        "carfax": {
+            "priceMin": 30000,
+            "priceMax": 50000,
+            "mileageMax": 40000,
+            "bodytypes": "SUV,Sedan",
         },
         "price": (30000, 50000),
         "year": (None, None),
