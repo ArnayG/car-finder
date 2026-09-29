@@ -51,8 +51,13 @@ def main() -> None:
         sys.exit("Nothing scraped yet. Run `python -m car_finder scrape` first.")
 
     if args.step in ("all", "classify"):
-        print("Classifying with Claude...")
-        verdicts = classify({k: v for k, v in saved["listings"].items() if k in categories})
+        out = write_report(saved["listings"], load_cache(), saved["sources"], location, live=True)
+        print(f"Classifying with Claude... (the report in your browser updates as batches finish)")
+        webbrowser.open(out.resolve().as_uri())
+        verdicts = classify(
+            {k: v for k, v in saved["listings"].items() if k in categories},
+            on_progress=lambda cache: write_report(saved["listings"], cache, saved["sources"], location, live=True),
+        )
     else:
         verdicts = load_cache()
 
@@ -62,7 +67,8 @@ def main() -> None:
         if verdicts.get(f"{c}:{l['id']}", {}).get("fits")
     )
     print(f"{matches} matches. Report: {out.resolve()}")
-    webbrowser.open(out.resolve().as_uri())
+    if args.step == "report":
+        webbrowser.open(out.resolve().as_uri())
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from car_finder import config
 
@@ -116,9 +116,13 @@ def load_cache() -> Dict[str, Dict]:
     return {}
 
 
-def classify(scraped: Dict[str, List[Dict]]) -> Dict[str, Dict]:
+def classify(
+    scraped: Dict[str, List[Dict]],
+    on_progress: Optional[Callable[[Dict[str, Dict]], None]] = None,
+) -> Dict[str, Dict]:
     """Classify every listing not already in the cache. Returns the full cache,
-    keyed by "<category>:<listing id>"."""
+    keyed by "<category>:<listing id>". `on_progress` is called with the cache
+    after each batch (used to keep the report current while classifying)."""
     if not shutil.which("claude"):
         raise SystemExit("The Claude Code CLI (`claude`) must be installed and logged in.")
     cache = load_cache()
@@ -140,4 +144,6 @@ def classify(scraped: Dict[str, List[Dict]]) -> Dict[str, Dict]:
                 cache[f"{category}:{v['listing_id']}"] = v
             CACHE_FILE.write_text(json.dumps(cache, indent=1))
             print(f"  classified batch {done}/{len(jobs)}")
+            if on_progress:
+                on_progress(cache)
     return cache

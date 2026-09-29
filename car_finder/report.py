@@ -44,15 +44,17 @@ def _int(value):
         return None
 
 
-def write_report(scraped: Dict[str, List[Dict]], verdicts: Dict[str, Dict], sources: Dict[str, str], location: str) -> Path:
+def write_report(scraped: Dict[str, List[Dict]], verdicts: Dict[str, Dict], sources: Dict[str, str], location: str, live: bool = False) -> Path:
+    """Write the report. `live` makes the page auto-refresh while classification runs."""
     data = {
         "location": location,
         "sources": sources,
-        "generated": datetime.now().strftime("%b %d, %Y %I:%M %p"),
+        "generated": datetime.now().strftime("%b %d, %Y %I:%M %p") + (" · still classifying, auto-refreshing" if live else ""),
         "categories": {k: v["label"] for k, v in config.CATEGORIES.items()},
         "rows": build_rows(scraped, verdicts),
     }
-    html = TEMPLATE.read_text().replace(
+    refresh = '<meta http-equiv="refresh" content="20">' if live else ""
+    html = TEMPLATE.read_text().replace("<!--__REFRESH__-->", refresh).replace(
         "/*__DATA__*/null", json.dumps(data).replace("</", "<\\/")
     )
     out = Path(config.DATA_DIR) / "report.html"
